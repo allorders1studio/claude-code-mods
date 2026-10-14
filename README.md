@@ -99,7 +99,7 @@ Requirements, honestly:
 Neu laden  2 offen · Stand 23:20:56
 ```
 
-Order: tasks with a due date first (by date), then high priority, then the rest in page order, parked tasks last and dimmed. A click opens the detail view with all sub-lines; "In Prompt übernehmen" writes the task into the input field.
+Order: tasks with a due date first (by date), then high priority, then the rest in page order, parked tasks last and dimmed. A click on a task writes it, with its detail lines, into the input field; "Details ›" opens the detail view.
 
 How it works: the mod reads the page `todo`, takes the list slugs from the lines `- [[todo/<name>]] — …` under `## Projekte`, reads each list and keeps those whose `Repos:` line names the repo of `git remote get-url origin`. A repo may be on several lists; each is shown as its own section. Loaded at session start, every 5 minutes, on `/tickets` and on "Neu laden".
 
@@ -120,7 +120,7 @@ Repos: `owner/repo`, `owner/other-repo`
 
 Parts after ` · ` in the title line are read as `seit`, `fällig` (both `YYYY-MM-DD`), `wartet auf …`, `Prio hoch` and `geparkt`; anything else stays in the text. `[[a/b]]` is shown as `a/b`.
 
-Requirements, honestly: an MCP server named `claude.ai G-Brain` (as listed by `/mcp`) whose `get_page` takes `{ slug, content_only }` and answers with JSON containing `compiled_truth`. Without such a store this mod is of no use to you. No credentials are configured here; the connection is the session's own.
+Requirements, honestly: an MCP server whose tools include `get_page`, `put_page` and `remember` (the mod finds it by these tools, since its name differs between terminal and desktop app); `get_page` takes `{ slug, content_only }` and answers with JSON containing `compiled_truth`. In auto mode a mod's MCP call is refused unless `get_page` is allowed in `permissions.allow`, e.g. `"mcp__<server>__get_page"`. Without such a store this mod is of no use to you. No credentials are configured here; the connection is the session's own.
 
 Command: `/tickets`.
 

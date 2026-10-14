@@ -14,9 +14,24 @@ const error = atom({ plugin: 'todos', key: 'error' } as const, '')
 const loadedAt = atom({ plugin: 'todos', key: 'loadedAt' } as const, '')
 const detail = atom({ plugin: 'todos', key: 'detail' } as const, null)
 
+// Der Servername hängt an der Oberfläche: im Terminal `claude.ai G-Brain`, in der Desktop-App die Connector-ID.
+// Daher den Server über seine Werkzeuge finden: einer, der `get_page`, `put_page` und `remember` anbietet.
+let server = ''
+async function brain($: EngineInterface) {
+  if (server) return server
+  const names = (await $.tool.list()).filter(t => t.mcp).map(t => t.name)
+  const has = (s: string, tool: string) => names.includes(`mcp__${s}__${tool}`)
+  const found = names
+    .map(n => n.match(/^mcp__(.+)__get_page$/)?.[1])
+    .find(s => s && has(s, 'put_page') && has(s, 'remember'))
+  // Nur einen Treffer merken; ohne Treffer beim nächsten Laden erneut suchen.
+  if (found) server = found
+  return found ?? SERVER
+}
+
 // Lesender Aufruf; Antwort ist JSON im ersten Text-Block, `compiled_truth` die Seite ohne Frontmatter.
 async function page($: EngineInterface, slug: string) {
-  const r = await $.mcp.call(SERVER, 'get_page', { slug, content_only: true })
+  const r = await $.mcp.call(await brain($), 'get_page', { slug, content_only: true })
   const text = r.content.find(c => c.type === 'text')?.text ?? ''
   if (r.isError) throw new Error(`${slug}: ${text.slice(0, 200) || 'Fehler'}`)
   try {
@@ -60,6 +75,9 @@ async function show($: EngineInterface) {
   await load($)
 }
 
+// Backticks aus dem Markdown der Liste stören in Button und Text, dort wird nichts formatiert.
+const plain = (t: string) => t.replace(/`/g, '')
+
 const today = () => new Date().toLocaleDateString('sv-SE')
 
 export const register: Register = on => {
@@ -101,7 +119,8 @@ export const register: Register = on => {
       return (
         <Text dimColor={!!it.meta.parked}>
           {first}
-          <Text dimColor>{rest.filter(Boolean).map(x => `  ·  ${x}`).join('')}</Text>
+          {/* Trenner nur zwischen vorhandenen Teilen, sonst stünde bei Einträgen ohne „seit“ ein Punkt vorn */}
+          <Text dimColor>{rest.filter(Boolean).map((x, i) => (i || dl || it.meta.since ? `  ·  ${x}` : x)).join('')}</Text>
         </Text>
       )
     }
@@ -115,7 +134,7 @@ export const register: Register = on => {
             <Button key="prompt" label="In Prompt übernehmen" onPress={() => $.prompt.fill({ text: toPrompt(list, item) })} />
           </Box>
           <Box flexDirection="column">
-            <Text bold>{item.text}</Text>
+            <Text bold>{plain(item.text)}</Text>
             <Text dimColor>{list.title}</Text>
             {line(item)}
           </Box>
@@ -141,8 +160,12 @@ export const register: Register = on => {
               const color = it.meta.due && !it.meta.parked ? due(`${it.meta.due}T12:00:00`, false, now)?.color : undefined
               return (
                 <Box key={`card:${l.slug}:${i}`} flexDirection="column" borderStyle="round" borderColor={color} borderDimColor={!color} hover={{ borderColor: 'cyan', borderDimColor: false }} paddingX={1}>
-                  <Button key={`task:${l.slug}:${i}`} plain dimColor={it.meta.parked} label={it.text} onPress={() => update($, detail, () => ({ list: l, item: it }))} />
-                  {line(it)}
+                  {/* Klick auf den Titel schreibt die Aufgabe ins Eingabefeld; die Details bleiben über „Details ›“ erreichbar */}
+                  <Button key={`task:${l.slug}:${i}`} plain dimColor={it.meta.parked} label={plain(it.text)} onPress={() => $.prompt.fill({ text: toPrompt(l, it) })} />
+                  <Box justifyContent="space-between">
+                    {line(it)}
+                    <Button key={`open:${l.slug}:${i}`} plain label="Details ›" onPress={() => update($, detail, () => ({ list: l, item: it }))} />
+                  </Box>
                 </Box>
               )
             })}
