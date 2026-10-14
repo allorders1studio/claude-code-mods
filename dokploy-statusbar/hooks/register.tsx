@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Deploy } from '../types'
+import { addToBar } from './bar'
 import { deployedCommit, elapsed, pathspecs, linkOf, parseLatest, parseWhen, tailLog, targetsFor } from './parse'
 
 const DOKPLOY = '/opt/homebrew/bin/dokploy'
@@ -126,27 +127,28 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const inner = await next(e)
     const list = await read($, deploys)
-    if (e.props.hasSurvey || list.length === 0) return next(e)
-    const { Box, Button, Link, Text } = $.ui.resolve(e)
+    if (e.props.hasSurvey || list.length === 0) return inner
+    const ui = $.ui.resolve(e)
+    const { Box, Button, Link, Text } = ui
     const at = await read($, checkedAt)
     const tick = await read($, now)
-    return (
-      <Box justifyContent="space-between">
-        <Box gap={1}>
-          {list.map(d => (
-            <Box key={`app:${d.panel}/${d.app}`}>
-              <Text color={d.pending ? 'gray' : (COLOR[d.status] ?? 'magenta')}>● </Text>
-              <Link href={linkOf(d)}>{d.app}</Link>
-              {d.status === 'error' && <Button key={`log:${d.panel}/${d.app}`} plain label=" Log" onPress={() => showLog($, d)} />}
-              {/* „done“ sagt schon der grüne Punkt; Status und Zeit nur, wenn etwas anderes los ist */}
-              <Text dimColor>{d.error ? ' Fehler beim Abruf' : d.pending ? ' ausstehend' : d.status !== 'done' ? ` ${d.status} ${runTime(d, tick)}` : ''}</Text>
-            </Box>
-          ))}
-        </Box>
-        {/* Abrufzeit nur als Randnotiz; eine Schriftgröße kennt die Oberfläche nicht, daher nur blasser */}
-        <Text color="subtle">{at.slice(0, 5)}</Text>
+    const apps = (
+      <Box gap={1}>
+        {list.map(d => (
+          <Box key={`app:${d.panel}/${d.app}`}>
+            <Text color={d.pending ? 'gray' : (COLOR[d.status] ?? 'magenta')}>● </Text>
+            <Link href={linkOf(d)}>{d.app}</Link>
+            {d.status === 'error' && <Button key={`log:${d.panel}/${d.app}`} plain label=" Log" onPress={() => showLog($, d)} />}
+            {/* „done“ sagt schon der grüne Punkt; Status und Zeit nur, wenn etwas anderes los ist */}
+            <Text dimColor>{d.error ? ' Fehler beim Abruf' : d.pending ? ' ausstehend' : d.status !== 'done' ? ` ${d.status} ${runTime(d, tick)}` : ''}</Text>
+          </Box>
+        ))}
       </Box>
     )
+    // Abrufzeit ganz rechts (Schlüssel „9“) und nur als Randnotiz; eine Schriftgröße kennt die Oberfläche nicht, daher nur blasser
+    const withApps = addToBar(ui, inner, 'left', '1-dokploy', apps)
+    return addToBar(ui, withApps, 'right', '9-zeit', <Text color="subtle">{at.slice(0, 5)}</Text>)
   })
 }

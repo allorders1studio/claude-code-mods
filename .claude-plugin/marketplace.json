@@ -1,6 +1,6 @@
 {
   "name": "claude-code-mods",
-  "description": "Mods for Claude Code: Dokploy deploy status bar, Message-Hub tasks pane, Git worktree overview",
+  "description": "Mods for Claude Code: Dokploy deploy status bar, G-Brain tasks pane, RAM usage, Git worktree overview",
   "owner": {
     "name": "Nam"
   },
@@ -10,8 +10,12 @@
       "source": "./dokploy-statusbar"
     },
     {
-      "name": "hub-tasks",
-      "source": "./hub-tasks"
+      "name": "todos",
+      "source": "./todos"
+    },
+    {
+      "name": "ram",
+      "source": "./ram"
     },
     {
       "name": "worktrees",

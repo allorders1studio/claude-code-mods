@@ -1,0 +1,7 @@
+{
+  "name": "ram",
+  "version": "0.1.0",
+  "description": "Belegter Arbeitsspeicher (macOS) als Eintrag in der Leiste über dem Eingabefeld",
+  "author": { "name": "Nam" },
+  "types": "./types/index.d.ts"
+}
