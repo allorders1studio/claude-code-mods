@@ -1,0 +1,21 @@
+{
+  "name": "nam-mods",
+  "description": "Eigene Claude-Code-Mods",
+  "owner": {
+    "name": "Nam"
+  },
+  "plugins": [
+    {
+      "name": "oms-deploy",
+      "source": "./oms-deploy"
+    },
+    {
+      "name": "hub-tasks",
+      "source": "./hub-tasks"
+    },
+    {
+      "name": "worktrees",
+      "source": "./worktrees"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "hub-tasks",
+  "version": "0.2.0",
+  "description": "Offene Aufgaben aus dem Message-Hub im Pane; ein Klick schreibt die Aufgabe ins Eingabefeld",
+  "author": { "name": "Nam" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "token": {
+      "type": "string",
+      "title": "Message-Hub API-Token",
+      "description": "Persönlicher API-Token mit Scope tasks:read (Message-Hub → Einstellungen → API-Tokens).",
+      "sensitive": true,
+      "default": ""
+    }
+  }
+}

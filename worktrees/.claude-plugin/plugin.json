@@ -1,0 +1,7 @@
+{
+  "name": "worktrees",
+  "version": "0.1.1",
+  "description": "Übersicht der Git-Worktrees des aktuellen Repos: uncommittete Arbeit, Commits nicht in main, gepusht oder nicht",
+  "author": { "name": "Nam" },
+  "types": "./types/index.d.ts"
+}

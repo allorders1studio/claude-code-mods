@@ -1,0 +1,9 @@
+{
+  "name": "oms-deploy",
+  "version": "0.4.1",
+  "description": "Live-Deploy-Status der Dokploy-Apps zum aktuellen Projekt als Leiste über dem Eingabefeld",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Nam"
+  }
+}
