@@ -1,13 +1,13 @@
 {
-  "name": "nam-mods",
-  "description": "Eigene Claude-Code-Mods",
+  "name": "claude-code-mods",
+  "description": "Mods for Claude Code: Dokploy deploy status bar, Message-Hub tasks pane, Git worktree overview",
   "owner": {
     "name": "Nam"
   },
   "plugins": [
     {
-      "name": "oms-deploy",
-      "source": "./oms-deploy"
+      "name": "dokploy-statusbar",
+      "source": "./dokploy-statusbar"
     },
     {
       "name": "hub-tasks",

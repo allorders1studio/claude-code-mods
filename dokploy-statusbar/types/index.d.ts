@@ -3,6 +3,6 @@ export type Deploy = Target & { status: string; when: string; title: string; err
 
 declare module 'claude-code' {
   interface PluginState {
-    'oms-deploy': { deploys: Deploy[]; checkedAt: string; services: (Target & { repo: string })[]; now: number }
+    'dokploy-statusbar': { deploys: Deploy[]; checkedAt: string; services: (Target & { repo: string })[]; now: number }
   }
 }

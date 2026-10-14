@@ -6,11 +6,11 @@ import { deployedCommit, elapsed, pathspecs, linkOf, parseLatest, parseWhen, tai
 
 const DOKPLOY = '/opt/homebrew/bin/dokploy'
 const NODE = '/opt/homebrew/bin/node'
-const deploys = atom({ plugin: 'oms-deploy', key: 'deploys' } as const, [])
-const checkedAt = atom({ plugin: 'oms-deploy', key: 'checkedAt' } as const, '')
-const services = atom({ plugin: 'oms-deploy', key: 'services' } as const, [])
+const deploys = atom({ plugin: 'dokploy-statusbar', key: 'deploys' } as const, [])
+const checkedAt = atom({ plugin: 'dokploy-statusbar', key: 'checkedAt' } as const, '')
+const services = atom({ plugin: 'dokploy-statusbar', key: 'services' } as const, [])
 // Sekundentakt nur für die laufende Zeit; ohne Atom würde die Leiste zwischen zwei Polls stehen.
-const now = atom({ plugin: 'oms-deploy', key: 'now' } as const, 0)
+const now = atom({ plugin: 'dokploy-statusbar', key: 'now' } as const, 0)
 
 const COLOR: Record<string, string> = { done: 'green', error: 'red', running: 'yellow', idle: 'gray' }
 const SLOW = 30000

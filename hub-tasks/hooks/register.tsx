@@ -27,7 +27,7 @@ async function workspace($: EngineInterface, token: string): Promise<string> {
 
 async function load($: EngineInterface, token: string) {
   if (!token) {
-    await update($, error, () => 'Kein Token hinterlegt: claude plugin configure hub-tasks@nam-mods, danach /reload-plugins')
+    await update($, error, () => 'Kein Token hinterlegt: claude plugin configure hub-tasks@claude-code-mods, danach /reload-plugins')
     return
   }
   try {

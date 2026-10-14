@@ -1,0 +1,9 @@
+{
+  "name": "dokploy-statusbar",
+  "version": "0.5.0",
+  "description": "Dokploy-Deploy-Status des aktuellen Repos als Leiste über dem Eingabefeld",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Nam"
+  }
+}
