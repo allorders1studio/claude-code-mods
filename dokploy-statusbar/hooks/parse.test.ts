@@ -17,6 +17,7 @@ test('ordnet Dienste nach Remote zu, nicht nach Ordnername', () => {
   const all = [svc('oms-api', 'skypedumont/oms'), svc('oms2-wms', 'skypedumont/oms-2.0'), svc('oms2-api', 'skypedumont/oms-2.0')]
   expect(targetsFor(all, 'https://github.com/skypedumont/OMS.git').map(t => t.app)).toEqual(['oms-api'])
   expect(targetsFor(all, 'git@github.com:skypedumont/oms-2.0.git').map(t => t.app)).toEqual(['oms2-api', 'oms2-wms'])
+  expect(targetsFor(all, 'https://github.com/allorders1studio/OMS.git').map(t => t.app)).toEqual(['oms-api'])
   expect(targetsFor(all, 'https://github.com/example/other-repo')).toEqual([])
   expect(targetsFor(all, '')).toEqual([])
 })

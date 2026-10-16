@@ -14,7 +14,7 @@ The UI texts of all mods are in German.
 ## Installation
 
 ```sh
-claude plugin marketplace add skypedumont/claude-code-mods
+claude plugin marketplace add allorders1studio/claude-code-mods
 claude plugin install worktrees@claude-code-mods
 ```
 
@@ -76,7 +76,7 @@ Command: `/deploys` (refresh now).
 
 Requirements, honestly:
 
-- The `dokploy` CLI from [skypedumont/dokploy-cli](https://github.com/skypedumont/dokploy-cli). That repository is currently **private**; it is not the npm package of the same name.
+- The `dokploy` CLI from [allorders1studio/dokploy-cli](https://github.com/allorders1studio/dokploy-cli). That repository is currently **private**; it is not the npm package of the same name.
 - macOS with Homebrew paths: `/opt/homebrew/bin/dokploy`, `/opt/homebrew/lib/node_modules/dokploy-cli` and `/opt/homebrew/bin/node` are hard-coded in `hooks/register.tsx` and `hooks/discover.cjs`.
 
 ### How it works

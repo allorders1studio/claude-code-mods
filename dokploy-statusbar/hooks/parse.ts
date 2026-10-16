@@ -16,9 +16,11 @@ export const repoOf = (remoteUrl: string) =>
   remoteUrl.trim().toLowerCase().replace(/\.git$/, '').match(/github\.com[:/]([^/]+\/[^/]+)$/)?.[1] ?? ''
 
 // Dienste (Ausgabe von discover.cjs) zum Remote. Am Remote statt am Ordnernamen, weil OMS / OMS-2.0 sich sonst verwechseln.
+// Nur der Repo-Name zählt, nicht der Owner: Dokploy behält nach einer Umbenennung des GitHub-Accounts den alten Owner.
+const nameOf = (repo: string) => repo.toLowerCase().split('/')[1] ?? ''
 export const targetsFor = (services: (Target & { repo: string })[], remoteUrl: string): Target[] => {
-  const repo = repoOf(remoteUrl)
-  return repo ? services.filter(s => s.repo === repo).sort((a, b) => a.app.localeCompare(b.app)) : []
+  const name = nameOf(repoOf(remoteUrl))
+  return name ? services.filter(s => nameOf(s.repo) === name).sort((a, b) => a.app.localeCompare(b.app)) : []
 }
 
 // Tolerant, weil Dokploy den Titel evtl. kürzt: getrimmt, gleich oder Präfix in eine Richtung.
