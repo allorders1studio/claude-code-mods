@@ -1,6 +1,6 @@
 {
   "name": "todos",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Offene Aufgaben des aktuellen Repos aus dem G-Brain im Pane und als Eintrag in der Leiste über dem Eingabefeld; ein Klick schreibt die Aufgabe ins Eingabefeld",
   "author": { "name": "Nam" },
   "types": "./types/index.d.ts"

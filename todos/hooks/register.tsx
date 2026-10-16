@@ -58,7 +58,9 @@ async function load($: EngineInterface) {
           return { ...l, title: l.title || p.title, slug }
         }),
       )
-      found = all.filter(l => l.repos.includes(repo))
+      // Nur der Repo-Name zählt: die Listen im G-Brain nennen evtl. noch den alten GitHub-Owner.
+      const name = (r: string) => r.split('/')[1]
+      found = all.filter(l => l.repos.some(r => name(r) === name(repo)))
     }
     await update($, lists, () => found)
     await update($, error, () => '')
