@@ -1,11 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Deploy } from '../types'
+import type { Deploy, PollEntry, Target } from '../types'
 import { addToBar } from './bar'
-import { deployedCommit, elapsed, pathspecs, linkOf, parseLatest, parseWhen, tailLog, targetsFor } from './parse'
+import { clockOf, deployedCommit, elapsed, pathspecs, linkOf, parseLatest, parseWhen, tailLog, targetsFor } from './parse'
 
-const DOKPLOY = '/opt/homebrew/bin/dokploy'
+const PANEL = '/opt/homebrew/bin/dokploy-panel'
 const NODE = '/opt/homebrew/bin/node'
 const deploys = atom({ plugin: 'dokploy-statusbar', key: 'deploys' } as const, [])
 const checkedAt = atom({ plugin: 'dokploy-statusbar', key: 'checkedAt' } as const, '')
@@ -25,15 +25,52 @@ let lastPoll = 0
 let lastDiscover = 0
 let fastUntil = 0
 
+// Ein Wrapper-Aufruf holt den API-Key einmal aus Infisical, daher je Panel ein Prozess mit allen Abfragen.
+const inPanel = ($: EngineInterface, panel: string, script: string, args: string[], timeoutMs: number) =>
+  $.process.run([PANEL, panel, 'exec', NODE, `${$.plugin.root}/hooks/${script}`, ...args], { timeoutMs })
+
 // Dienste samt Repo aus allen Dokploy-Panels; discover.cjs gibt nur öffentliche Felder aus, nie Keys.
+// Ein Panel, das nicht antwortet, liefert [] und blockiert die anderen nicht.
 async function discover($: EngineInterface) {
   lastDiscover = Date.now()
   try {
-    const r = await $.process.run([NODE, `${$.plugin.root}/hooks/discover.cjs`], { timeoutMs: 30000 })
-    if (r.exitCode === 0) await update($, services, () => JSON.parse(r.stdout))
+    const p = await $.process.run([PANEL, '--panels'], { timeoutMs: 10000 })
+    if (p.exitCode !== 0) throw new Error((p.stderr || p.stdout).trim().split('\n')[0] || `Exit ${p.exitCode}`)
+    const panels = p.stdout.split('\n').map(l => l.trim()).filter(Boolean)
+    const lists = await Promise.all(
+      panels.map(async panel => {
+        try {
+          const r = await inPanel($, panel, 'discover.cjs', [], 30000)
+          return r.exitCode === 0 ? (JSON.parse(r.stdout) as (Target & { repo: string })[]) : []
+        } catch {
+          return []
+        }
+      }),
+    )
+    await update($, services, () => lists.flat())
   } catch (err) {
     void $.ui.toast(`Dokploy-Zuordnung fehlgeschlagen: ${err}`)
   }
+}
+
+// Neuester Deploy je Dienst, ein Prozess pro Panel; Schlüssel `panel/id`.
+async function latestByService($: EngineInterface, targets: Target[]) {
+  const out = new Map<string, PollEntry>()
+  const panels = [...new Set(targets.map(t => t.panel))]
+  await Promise.all(
+    panels.map(async panel => {
+      const mine = targets.filter(t => t.panel === panel)
+      try {
+        const r = await inPanel($, panel, 'poll.cjs', mine.map(t => `${t.kind}:${t.id}`), 20000)
+        const entries: PollEntry[] = r.exitCode === 0 ? JSON.parse(r.stdout) : []
+        const error = (r.stderr || r.stdout).trim().split('\n')[0] || `Exit ${r.exitCode}`
+        for (const t of mine) out.set(`${panel}/${t.id}`, entries.find(e => e.id === t.id) ?? { id: t.id, error })
+      } catch (err) {
+        for (const t of mine) out.set(`${panel}/${t.id}`, { id: t.id, error: String(err) })
+      }
+    }),
+  )
+  return out
 }
 
 // Liest das Repo bei jedem Lauf neu, damit ein Projektwechsel in der Session sofort greift.
@@ -46,11 +83,11 @@ async function poll($: EngineInterface) {
     const remote = await $.process.run(['git', 'remote', 'get-url', 'origin'], { cwd })
     const targets = targetsFor(await read($, services), remote.exitCode === 0 ? remote.stdout : '')
     const before = await read($, deploys)
+    const latest = await latestByService($, targets)
     const next = await Promise.all(
       targets.map(async t => {
         try {
-          const r = await $.process.run([DOKPLOY, '-p', t.panel, 'logs', t.app, '--deployments'], { timeoutMs: 20000 })
-          const d = parseLatest(t, r.exitCode === 0 ? r.stdout : r.stderr || r.stdout)
+          const d = parseLatest(t, latest.get(`${t.panel}/${t.id}`))
           // Ohne `git fetch`: ein Push aktualisiert origin/<branch> lokal. Git-Fehler oder kein Treffer → keine Markierung.
           // Ausstehend heißt: seit dem deployten Commit kam einer, der die watchPaths des Dienstes berührt.
           let pending = false
@@ -82,7 +119,8 @@ async function poll($: EngineInterface) {
 
 async function showLog($: EngineInterface, d: Deploy) {
   try {
-    const r = await $.process.run([DOKPLOY, '-p', d.panel, 'logs', d.app, '-b', '1'], { timeoutMs: 30000 })
+    if (!d.deploymentId) throw new Error('keine Deployment-ID')
+    const r = await inPanel($, d.panel, 'poll.cjs', ['log', d.deploymentId, '200'], 30000)
     if (r.exitCode !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n')[0] || `Exit ${r.exitCode}`)
     const text = `Build-Log von ${d.app} (${d.panel}), letzter Deploy fehlgeschlagen:\n\`\`\`\n${tailLog(r.stdout)}\n\`\`\`\n`
     await $.prompt.fill({ text })
@@ -92,7 +130,7 @@ async function showLog($: EngineInterface, d: Deploy) {
 }
 
 const runTime = (d: Deploy, tick: number) =>
-  d.status === 'running' && !Number.isNaN(parseWhen(d.when)) ? elapsed(tick - parseWhen(d.when)) : (d.when.split(', ')[1]?.slice(0, 5) ?? '')
+  d.status === 'running' && !Number.isNaN(parseWhen(d.when)) ? elapsed(tick - parseWhen(d.when)) : clockOf(d.when)
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {

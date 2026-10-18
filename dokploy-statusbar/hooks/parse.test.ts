@@ -1,15 +1,16 @@
 import { expect, test } from 'claude-code/testing'
-import { deployedCommit, elapsed, linkOf, parseLatest, parseWhen, pathspecs, tailLog, targetsFor } from './parse'
+import { clockOf, deployedCommit, elapsed, linkOf, parseLatest, parseWhen, pathspecs, tailLog, targetsFor } from './parse'
 
-const api = { panel: 'oms1', app: 'oms-api', kind: 'application' as const, branch: 'main', watchPaths: [], url: 'https://p/svc' }
+const api = { panel: 'oms1', app: 'oms-api', id: 'a1', kind: 'application' as const, branch: 'main', watchPaths: [], url: 'https://p/svc' }
 
 test('liest den neuesten Deploy', () => {
-  const out = '🗂  Deployments for "oms-api" (11):\n\n   1. [running] 7.10.2026, 17:53:48 — feat(x): Titel\n   2. [done] 5.10.2026, 15:18:54 — alt\n'
-  expect(parseLatest(api, out)).toEqual({ ...api, status: 'running', when: '7.10.2026, 17:53:48', title: 'feat(x): Titel' })
+  const entry = { id: 'a1', deploymentId: 'd9', status: 'running', title: ' feat(x): Titel ', createdAt: '2026-10-07T15:53:48.000Z' }
+  expect(parseLatest(api, entry)).toEqual({ ...api, status: 'running', when: '2026-10-07T15:53:48.000Z', title: 'feat(x): Titel', deploymentId: 'd9' })
 })
 
-test('meldet unbekannte Ausgabe als Fehler', () => {
-  expect(parseLatest(api, 'error: unknown option -p').status).toBe('?')
+test('meldet fehlenden oder fehlerhaften Eintrag als Fehler', () => {
+  expect(parseLatest(api, undefined)).toMatchObject({ status: '?', error: 'keine Ausgabe' })
+  expect(parseLatest(api, { id: 'a1', error: 'deployment.all 401' })).toMatchObject({ status: '?', error: 'deployment.all 401' })
 })
 
 test('ordnet Dienste nach Remote zu, nicht nach Ordnername', () => {
@@ -25,7 +26,7 @@ test('ordnet Dienste nach Remote zu, nicht nach Ordnername', () => {
 test('Klick führt bei Fehler zu den Deployments, sonst auf die Dienst-Seite', () => {
   expect(linkOf({ ...api, status: 'done', when: '', title: '' })).toBe('https://p/svc')
   expect(linkOf({ ...api, status: 'error', when: '', title: '' })).toBe('https://p/svc?tab=deployments')
-  expect(linkOf(parseLatest(api, 'error: unknown option -p'))).toBe('https://p/svc?tab=deployments')
+  expect(linkOf(parseLatest(api, undefined))).toBe('https://p/svc?tab=deployments')
 })
 
 test('deployten Commit über den Titel finden, tolerant', () => {
@@ -43,8 +44,10 @@ test('watchPaths werden zu Pathspecs, leer bleibt leer', () => {
 })
 
 test('Zeitangabe und verstrichene Zeit', () => {
-  expect(parseWhen('7.10.2026, 17:53:48')).toBe(new Date(2026, 9, 7, 17, 53, 48).getTime())
+  expect(parseWhen('2026-10-07T15:53:48.000Z')).toBe(Date.UTC(2026, 9, 7, 15, 53, 48))
   expect(parseWhen('kaputt')).toBeNaN()
+  expect(clockOf('2026-10-07T15:53:48.000Z')).toBe(new Date(Date.UTC(2026, 9, 7, 15, 53, 48)).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))
+  expect(clockOf('kaputt')).toBe('')
   expect(elapsed(80_000)).toBe('1:20')
   expect(elapsed(5_000)).toBe('0:05')
   expect(elapsed(-1)).toBe('0:00')

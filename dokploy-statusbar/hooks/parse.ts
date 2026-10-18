@@ -1,13 +1,10 @@
-import type { Deploy, Target } from '../types'
+import type { Deploy, PollEntry, Target } from '../types'
 
-// Erste Zeile von `dokploy logs <app> --deployments`:
-//    1. [done] 7.10.2026, 17:53:48 — feat(...): ...
-export const parseLatest = (t: Target, out: string): Deploy => {
-  const m = out.match(/^\s*1\.\s+\[(\w+)\]\s+(\S+,\s*\S+)\s+—\s+(.*)$/m)
-  return m
-    ? { ...t, status: m[1], when: m[2], title: m[3].trim() }
-    : { ...t, status: '?', when: '', title: '', error: out.trim().split('\n')[0] || 'keine Ausgabe' }
-}
+// Eintrag aus poll.cjs (neuester Deploy des Dienstes) → Deploy; fehlender oder fehlerhafter Eintrag → Status '?'.
+export const parseLatest = (t: Target, entry: PollEntry | undefined): Deploy =>
+  entry && !entry.error && entry.status
+    ? { ...t, status: entry.status, when: entry.createdAt ?? '', title: (entry.title ?? '').split('\n')[0].trim(), deploymentId: entry.deploymentId }
+    : { ...t, status: '?', when: '', title: '', error: entry?.error || 'keine Ausgabe' }
 
 // Wohin ein Klick führt: bei Fehler direkt zu den Deployments mit dem Build-Log, sonst auf die Dienst-Seite.
 export const linkOf = (d: Deploy) => (d.status === 'error' || d.error ? `${d.url}?tab=deployments` : d.url)
@@ -42,10 +39,13 @@ export const deployedCommit = (logOut: string, title: string) => {
 // watchPaths → Git-Pathspecs; leer = jeder Commit deployt, also kein `--`.
 export const pathspecs = (watchPaths: string[]) => (watchPaths.length ? ['--', ...watchPaths.map(w => `:(glob)${w}`)] : [])
 
-// `7.10.2026, 17:53:48` (deutsch, lokale Zeit) → ms; NaN, wenn das Format nicht passt.
-export const parseWhen = (when: string) => {
-  const m = when.match(/^(\d+)\.(\d+)\.(\d+),\s*(\d+):(\d+):(\d+)$/)
-  return m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +m[6]).getTime() : NaN
+// ISO-Zeitstempel → ms; NaN, wenn er sich nicht lesen lässt.
+export const parseWhen = (when: string) => Date.parse(when)
+
+// HH:MM in lokaler Zeit; '' bei ungültiger Angabe.
+export const clockOf = (when: string) => {
+  const t = parseWhen(when)
+  return Number.isNaN(t) ? '' : new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
 }
 
 // m:ss; negative oder ungültige Spannen als 0:00 (Uhrenabweichung zum Server).
