@@ -1,36 +1,36 @@
-// Maps the Dokploy services of ONE panel to their Git repo. Run per panel:
-//   dokploy-panel <panel> exec node discover.cjs
-// Prints a JSON array with public fields only, never the API key.
-const { baseUrl, panel, get } = require('./api.cjs')
+// Ordnet die Dokploy-Dienste eines Panels ihrem GitHub-Repo zu. Läuft unter
+// `dokploy-panel <panel> exec node discover.cjs`; ausgegeben werden nur die Felder unten, nie Keys.
+const { query, baseUrl, panel } = require('./dokploy-api.cjs')
 
 const repoOf = u => (u || '').trim().toLowerCase().replace(/\.git$/, '').match(/github\.com[:/]([^/]+\/[^/]+)$/)?.[1] ?? ''
 
 async function main() {
+  const url = baseUrl()
   const out = []
   const jobs = []
-  for (const p of await get('project.all'))
+  for (const p of await query('project.all'))
     for (const env of p.environments ?? []) {
       const add = (kind, list) =>
         (list ?? []).forEach(s => {
           const id = s[`${kind}Id`]
           jobs.push(
-            get(`${kind}.one`, { [`${kind}Id`]: id })
+            query(`${kind}.one`, { [`${kind}Id`]: id })
               .then(d => {
                 const git = d.sourceType === 'github' ? [`github.com/${d.owner}/${d.repository}`, d.branch] : d.sourceType === 'git' ? [d.customGitUrl, d.customGitBranch] : null
                 const repo = git && repoOf(git[0])
-                if (repo) out.push({ panel, app: s.name, kind, id, repo, branch: git[1] || 'main', watchPaths: d.watchPaths ?? [], url: `${baseUrl}/dashboard/project/${p.projectId}/environment/${env.environmentId}/services/${kind}/${id}` })
+                if (repo) out.push({ panel: panel(), app: s.name, kind, id, repo, branch: git[1] || 'main', watchPaths: d.watchPaths ?? [], url: `${url}/dashboard/project/${p.projectId}/environment/${env.environmentId}/services/${kind}/${id}` })
               })
-              .catch(e => console.error(`${panel}/${s.name}: ${e.message}`)),
+              .catch(e => console.error(`${panel()}/${s.name}: ${e.message}`)),
           )
         })
       add('application', env.applications)
       add('compose', env.compose)
     }
   await Promise.all(jobs)
-  return out
+  console.log(JSON.stringify(out))
 }
 
-main().then(
-  r => console.log(JSON.stringify(r)),
-  e => (console.error(`${panel}: ${e.message}`), console.log('[]')),
-)
+main().catch(e => {
+  console.error(`${panel()}: ${e.message}`)
+  process.exit(1)
+})

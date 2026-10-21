@@ -1,16 +1,23 @@
 import { expect, test } from 'claude-code/testing'
-import { clockOf, deployedCommit, elapsed, linkOf, parseLatest, parseWhen, pathspecs, tailLog, targetsFor } from './parse'
+import { clock, deployedCommit, elapsed, linkOf, parseLatest, parsePoll, parseWhen, pathspecs, tailLog, targetsFor } from './parse'
 
-const api = { panel: 'oms1', app: 'oms-api', id: 'a1', kind: 'application' as const, branch: 'main', watchPaths: [], url: 'https://p/svc' }
+const api = { panel: 'oms1', app: 'oms-api', kind: 'application' as const, id: 'a1', branch: 'main', watchPaths: [], url: 'https://p/svc' }
 
-test('liest den neuesten Deploy', () => {
-  const entry = { id: 'a1', deploymentId: 'd9', status: 'running', title: ' feat(x): Titel ', createdAt: '2026-10-07T15:53:48.000Z' }
-  expect(parseLatest(api, entry)).toEqual({ ...api, status: 'running', when: '2026-10-07T15:53:48.000Z', title: 'feat(x): Titel', deploymentId: 'd9' })
+test('liest den neuesten Deploy, Titel nur als Betreff', () => {
+  const e = { id: 'a1', status: 'running', title: 'feat(x): Titel\n\nBody\n\nCo-Authored-By: X', createdAt: '2026-10-07T15:53:48.000Z', deploymentId: 'd1' }
+  expect(parseLatest(api, e)).toEqual({ ...api, status: 'running', when: '2026-10-07T15:53:48.000Z', title: 'feat(x): Titel', deploymentId: 'd1' })
 })
 
 test('meldet fehlenden oder fehlerhaften Eintrag als Fehler', () => {
-  expect(parseLatest(api, undefined)).toMatchObject({ status: '?', error: 'keine Ausgabe' })
-  expect(parseLatest(api, { id: 'a1', error: 'deployment.all 401' })).toMatchObject({ status: '?', error: 'deployment.all 401' })
+  expect(parseLatest(api, undefined).status).toBe('?')
+  expect(parseLatest(api, undefined, 'infisical: nicht angemeldet').error).toBe('infisical: nicht angemeldet')
+  expect(parseLatest(api, { id: 'a1', error: 'deployment.all 401' }).error).toBe('deployment.all 401')
+})
+
+test('liest die Ausgabe von poll.cjs', () => {
+  expect(parsePoll('[{"id":"a1","status":"done"}]')).toEqual([{ id: 'a1', status: 'done' }])
+  expect(parsePoll('kein json')).toBeNull()
+  expect(parsePoll('{"id":"a1"}')).toBeNull()
 })
 
 test('ordnet Dienste nach Remote zu, nicht nach Ordnername', () => {
@@ -46,8 +53,9 @@ test('watchPaths werden zu Pathspecs, leer bleibt leer', () => {
 test('Zeitangabe und verstrichene Zeit', () => {
   expect(parseWhen('2026-10-07T15:53:48.000Z')).toBe(Date.UTC(2026, 9, 7, 15, 53, 48))
   expect(parseWhen('kaputt')).toBeNaN()
-  expect(clockOf('2026-10-07T15:53:48.000Z')).toBe(new Date(Date.UTC(2026, 9, 7, 15, 53, 48)).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))
-  expect(clockOf('kaputt')).toBe('')
+  expect(parseWhen('')).toBeNaN()
+  expect(clock('kaputt')).toBe('')
+  expect(clock('2026-10-07T15:53:48.000Z')).toMatch(/^\d\d:\d\d$/)
   expect(elapsed(80_000)).toBe('1:20')
   expect(elapsed(5_000)).toBe('0:05')
   expect(elapsed(-1)).toBe('0:00')

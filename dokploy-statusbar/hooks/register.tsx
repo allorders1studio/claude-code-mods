@@ -1,9 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Deploy, PollEntry, Target } from '../types'
+import type { Deploy, Target } from '../types'
 import { addToBar } from './bar'
-import { clockOf, deployedCommit, elapsed, pathspecs, linkOf, parseLatest, parseWhen, tailLog, targetsFor } from './parse'
+import { clock, deployedCommit, elapsed, pathspecs, linkOf, parseLatest, parsePoll, parseWhen, tailLog, targetsFor } from './parse'
+import type { PollEntry } from './parse'
 
 const PANEL = '/opt/homebrew/bin/dokploy-panel'
 const NODE = '/opt/homebrew/bin/node'
@@ -25,52 +26,42 @@ let lastPoll = 0
 let lastDiscover = 0
 let fastUntil = 0
 
-// Ein Wrapper-Aufruf holt den API-Key einmal aus Infisical, daher je Panel ein Prozess mit allen Abfragen.
-const inPanel = ($: EngineInterface, panel: string, script: string, args: string[], timeoutMs: number) =>
-  $.process.run([PANEL, panel, 'exec', NODE, `${$.plugin.root}/hooks/${script}`, ...args], { timeoutMs })
+// Fehlerbilder, die schon gemeldet wurden: eine dauerhafte Störung soll nicht alle 10 min einen Toast auslösen.
+type Service = Target & { repo: string }
+const toasted = new Set<string>()
+const toastOnce = ($: EngineInterface, text: string) => {
+  if (toasted.has(text)) return
+  toasted.add(text)
+  void $.ui.toast(text)
+}
 
-// Dienste samt Repo aus allen Dokploy-Panels; discover.cjs gibt nur öffentliche Felder aus, nie Keys.
-// Ein Panel, das nicht antwortet, liefert [] und blockiert die anderen nicht.
+// Dienste samt Repo aus allen Dokploy-Panels. `dokploy-panel <panel> exec` setzt URL und Key nur für das Skript;
+// discover.cjs gibt nur öffentliche Felder aus, nie Keys. Fällt ein Panel aus, zählen die anderen trotzdem.
 async function discover($: EngineInterface) {
   lastDiscover = Date.now()
   try {
-    const p = await $.process.run([PANEL, '--panels'], { timeoutMs: 10000 })
-    if (p.exitCode !== 0) throw new Error((p.stderr || p.stdout).trim().split('\n')[0] || `Exit ${p.exitCode}`)
-    const panels = p.stdout.split('\n').map(l => l.trim()).filter(Boolean)
-    const lists = await Promise.all(
-      panels.map(async panel => {
+    const list = await $.process.run([PANEL, '--panels'], { timeoutMs: 10000 })
+    if (list.exitCode !== 0) throw new Error((list.stderr || list.stdout).trim().split('\n')[0] || `Exit ${list.exitCode}`)
+    const panels = list.stdout.split('\n').map(p => p.trim()).filter(Boolean)
+    const found = await Promise.all(
+      panels.map(async p => {
         try {
-          const r = await inPanel($, panel, 'discover.cjs', [], 30000)
-          return r.exitCode === 0 ? (JSON.parse(r.stdout) as (Target & { repo: string })[]) : []
-        } catch {
-          return []
+          const r = await $.process.run([PANEL, p, 'exec', NODE, `${$.plugin.root}/hooks/discover.cjs`], { timeoutMs: 60000 })
+          if (r.exitCode !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n')[0] || `Exit ${r.exitCode}`)
+          return { ok: true, list: JSON.parse(r.stdout) as Service[] }
+        } catch (err) {
+          toastOnce($, `Dokploy-Zuordnung (${p}) fehlgeschlagen: ${err}`)
+          return { ok: false, list: [] as Service[] }
         }
       }),
     )
-    await update($, services, () => lists.flat())
+    // Ein ausgefallenes Panel behält seine bisherigen Dienste, statt sie aus der Leiste zu streichen.
+    const old = await read($, services)
+    const merged = found.flatMap((f, i) => (f.ok ? f.list : old.filter(o => o.panel === panels[i])))
+    await update($, services, () => merged)
   } catch (err) {
-    void $.ui.toast(`Dokploy-Zuordnung fehlgeschlagen: ${err}`)
+    toastOnce($, `Dokploy-Zuordnung fehlgeschlagen: ${err}`)
   }
-}
-
-// Neuester Deploy je Dienst, ein Prozess pro Panel; Schlüssel `panel/id`.
-async function latestByService($: EngineInterface, targets: Target[]) {
-  const out = new Map<string, PollEntry>()
-  const panels = [...new Set(targets.map(t => t.panel))]
-  await Promise.all(
-    panels.map(async panel => {
-      const mine = targets.filter(t => t.panel === panel)
-      try {
-        const r = await inPanel($, panel, 'poll.cjs', mine.map(t => `${t.kind}:${t.id}`), 20000)
-        const entries: PollEntry[] = r.exitCode === 0 ? JSON.parse(r.stdout) : []
-        const error = (r.stderr || r.stdout).trim().split('\n')[0] || `Exit ${r.exitCode}`
-        for (const t of mine) out.set(`${panel}/${t.id}`, entries.find(e => e.id === t.id) ?? { id: t.id, error })
-      } catch (err) {
-        for (const t of mine) out.set(`${panel}/${t.id}`, { id: t.id, error: String(err) })
-      }
-    }),
-  )
-  return out
 }
 
 // Liest das Repo bei jedem Lauf neu, damit ein Projektwechsel in der Session sofort greift.
@@ -83,14 +74,29 @@ async function poll($: EngineInterface) {
     const remote = await $.process.run(['git', 'remote', 'get-url', 'origin'], { cwd })
     const targets = targetsFor(await read($, services), remote.exitCode === 0 ? remote.stdout : '')
     const before = await read($, deploys)
-    const latest = await latestByService($, targets)
+    // Pro Panel ein Prozess für alle Dienste: ein Infisical-Abruf statt einem je Dienst.
+    const panels = [...new Set(targets.map(t => t.panel))]
+    const entries = new Map<string, PollEntry[] | string>()
+    await Promise.all(
+      panels.map(async p => {
+        const specs = targets.filter(t => t.panel === p).map(t => `${t.kind}:${t.id}`)
+        try {
+          const r = await $.process.run([PANEL, p, 'exec', NODE, `${$.plugin.root}/hooks/poll.cjs`, ...specs], { timeoutMs: 30000 })
+          const list = r.exitCode === 0 ? parsePoll(r.stdout) : null
+          entries.set(p, list ?? ((r.stderr || r.stdout).trim().split('\n')[0] || 'keine Ausgabe'))
+        } catch (err) {
+          entries.set(p, String(err))
+        }
+      }),
+    )
     const next = await Promise.all(
       targets.map(async t => {
+        const e = entries.get(t.panel)
+        const d = Array.isArray(e) ? parseLatest(t, e.find(x => x.id === t.id)) : parseLatest(t, undefined, e)
+        // Ohne `git fetch`: ein Push aktualisiert origin/<branch> lokal. Git-Fehler oder kein Treffer → keine Markierung.
+        // Ausstehend heißt: seit dem deployten Commit kam einer, der die watchPaths des Dienstes berührt.
+        let pending = false
         try {
-          const d = parseLatest(t, latest.get(`${t.panel}/${t.id}`))
-          // Ohne `git fetch`: ein Push aktualisiert origin/<branch> lokal. Git-Fehler oder kein Treffer → keine Markierung.
-          // Ausstehend heißt: seit dem deployten Commit kam einer, der die watchPaths des Dienstes berührt.
-          let pending = false
           if (d.status === 'done') {
             const ref = `origin/${t.branch}`
             const g = await $.process.run(['git', 'log', '-200', '--format=%H%x09%s', ref], { cwd })
@@ -100,10 +106,10 @@ async function poll($: EngineInterface) {
               pending = c.exitCode === 0 && Number(c.stdout) > 0
             }
           }
-          return { ...d, pending }
-        } catch (err) {
-          return { ...t, status: '?', when: '', title: '', error: String(err) } as Deploy
+        } catch {
+          pending = false
         }
+        return { ...d, pending }
       }),
     )
     for (const d of next) {
@@ -120,7 +126,7 @@ async function poll($: EngineInterface) {
 async function showLog($: EngineInterface, d: Deploy) {
   try {
     if (!d.deploymentId) throw new Error('keine Deployment-ID')
-    const r = await inPanel($, d.panel, 'poll.cjs', ['log', d.deploymentId, '200'], 30000)
+    const r = await $.process.run([PANEL, d.panel, 'deployment', 'read-logs', '--deploymentId', d.deploymentId, '--tail', '300'], { timeoutMs: 30000 })
     if (r.exitCode !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n')[0] || `Exit ${r.exitCode}`)
     const text = `Build-Log von ${d.app} (${d.panel}), letzter Deploy fehlgeschlagen:\n\`\`\`\n${tailLog(r.stdout)}\n\`\`\`\n`
     await $.prompt.fill({ text })
@@ -130,7 +136,7 @@ async function showLog($: EngineInterface, d: Deploy) {
 }
 
 const runTime = (d: Deploy, tick: number) =>
-  d.status === 'running' && !Number.isNaN(parseWhen(d.when)) ? elapsed(tick - parseWhen(d.when)) : clockOf(d.when)
+  d.status === 'running' && !Number.isNaN(parseWhen(d.when)) ? elapsed(tick - parseWhen(d.when)) : clock(d.when)
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {

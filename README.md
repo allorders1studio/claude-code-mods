@@ -76,12 +76,15 @@ Command: `/deploys` (refresh now).
 
 Requirements, honestly:
 
-- The official [`@dokploy/cli`](https://www.npmjs.com/package/@dokploy/cli) (`/opt/homebrew/bin/dokploy`) and the wrapper `dokploy-panel` (`/opt/homebrew/bin/dokploy-panel`, part of nams-claude-setup). The wrapper knows the panels (`dokploy-panel --panels`) and fetches the API key of a panel from Infisical, so an Infisical login on the machine is required. The npm package `dokploy-cli` is not meant.
+- The official [`@dokploy/cli`](https://www.npmjs.com/package/@dokploy/cli) (`npm i -g @dokploy/cli`).
+- The wrapper `dokploy-panel` (`/opt/homebrew/bin/dokploy-panel`, from `nams-claude-setup`). It fetches the API key of each panel from Infisical at run time, so the machine needs an Infisical login. `dokploy-panel --panels` lists the panels the mod queries.
 - macOS with Homebrew paths: `/opt/homebrew/bin/dokploy-panel` and `/opt/homebrew/bin/node` are hard-coded in `hooks/register.tsx`.
 
 ### How it works
 
-Per panel, `dokploy-panel <panel> exec node hooks/discover.cjs` lists all services and keeps those whose Git source matches `git remote get-url origin`. It also reads each service's `watchPaths` and id. No configuration per repo is needed. Each poll runs `hooks/poll.cjs` once per panel (`deployment.all` / `deployment.allByCompose` for all matching services), so the key is fetched once per panel and cycle. The build log of a failed deploy comes from `deployment.readLogs`. The API key lives only in the wrapper's child process; the mod never sees it. A panel that does not answer is skipped.
+Per panel, the mod runs `dokploy-panel <panel> exec node hooks/discover.cjs`. The wrapper puts `DOKPLOY_URL` and `DOKPLOY_API_KEY` into the script's environment only; the script reads all projects over Dokploy's tRPC API and keeps the services whose Git source matches `git remote get-url origin`, with id, branch and `watchPaths`. No configuration per repo is needed, and keys never reach the mod. If one panel fails, the others still count and the failure is shown once as a toast.
+
+Every 30 s `hooks/poll.cjs` runs per panel (one process for all services of that panel) and returns the newest deployment of each service (status, commit subject, creation time, deployment id). The "Log" button reads that deployment's build log with `dokploy-panel <panel> deployment read-logs`.
 
 ## todos
 
