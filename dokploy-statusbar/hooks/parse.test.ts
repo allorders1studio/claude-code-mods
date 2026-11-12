@@ -30,6 +30,11 @@ test('ordnet Dienste nach Remote zu, nicht nach Ordnername', () => {
   expect(targetsFor(all, '')).toEqual([])
 })
 
+test('blendet AO1S aus', () => {
+  const all = [{ ...api, repo: 'skypedumont/oms' }, { ...api, panel: 'ao1', app: 'ao1s-api', repo: 'skypedumont/oms' }]
+  expect(targetsFor(all, 'https://github.com/skypedumont/OMS.git').map(t => t.app)).toEqual(['oms-api'])
+})
+
 test('Klick führt bei Fehler zu den Deployments, sonst auf die Dienst-Seite', () => {
   expect(linkOf({ ...api, status: 'done', when: '', title: '' })).toBe('https://p/svc')
   expect(linkOf({ ...api, status: 'error', when: '', title: '' })).toBe('https://p/svc?tab=deployments')

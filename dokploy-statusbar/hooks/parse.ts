@@ -29,9 +29,11 @@ export const repoOf = (remoteUrl: string) =>
 // Dienste (Ausgabe von discover.cjs) zum Remote. Am Remote statt am Ordnernamen, weil OMS / OMS-2.0 sich sonst verwechseln.
 // Nur der Repo-Name zählt, nicht der Owner: Dokploy behält nach einer Umbenennung des GitHub-Accounts den alten Owner.
 const nameOf = (repo: string) => repo.toLowerCase().split('/')[1] ?? ''
+// AO1S (Demo) deployt nicht automatisch und steht darum fast immer auf „ausstehend“; Nam will es nicht in der Leiste.
+const hidden = (s: Target) => s.app.startsWith('ao1s-')
 export const targetsFor = (services: (Target & { repo: string })[], remoteUrl: string): Target[] => {
   const name = nameOf(repoOf(remoteUrl))
-  return name ? services.filter(s => nameOf(s.repo) === name).sort((a, b) => a.app.localeCompare(b.app)) : []
+  return name ? services.filter(s => nameOf(s.repo) === name && !hidden(s)).sort((a, b) => a.app.localeCompare(b.app)) : []
 }
 
 // Tolerant, weil Dokploy den Titel evtl. kürzt: getrimmt, gleich oder Präfix in eine Richtung.
