@@ -1,6 +1,6 @@
 # claude-code-mods
 
-Four [Claude Code](https://claude.com/claude-code) mods (plugins that change the interface itself): a deploy status bar, a tasks pane, a RAM indicator and a Git worktree overview. The three that draw above the input field share one bar.
+Five [Claude Code](https://claude.com/claude-code) mods (plugins that change the interface itself): a deploy status bar, a tasks pane, a RAM indicator, a Git worktree overview and a fix-loop status of the OMS repo. The four that draw above the input field share one bar.
 
 The UI texts of all mods are in German.
 
@@ -10,6 +10,7 @@ The UI texts of all mods are in German.
 | [`dokploy-statusbar`](#dokploy-statusbar) | Last Dokploy deploy per app | you deploy with Dokploy and have the private `dokploy` CLI |
 | [`todos`](#todos) | Open tasks of the current repo from a G-Brain | you have an MCP server `claude.ai G-Brain` with `get_page` |
 | [`ram`](#ram) | Used memory in the bar | you use macOS |
+| [`fehler-loop`](#fehler-loop) | Fix-loop status of the OMS repo: PRs to merge, open questions, hand tests, queue, routines | you work in a GitHub repo named `OMS` and have `gh` logged in |
 
 ## Installation
 
@@ -18,7 +19,7 @@ claude plugin marketplace add allorders1studio/claude-code-mods
 claude plugin install worktrees@claude-code-mods
 ```
 
-Replace `worktrees` with `dokploy-statusbar`, `todos` or `ram` as needed, then run `/reload-plugins` inside Claude Code.
+Replace `worktrees` with `dokploy-statusbar`, `todos`, `ram` or `fehler-loop` as needed, then run `/reload-plugins` inside Claude Code.
 
 ## worktrees
 
@@ -127,20 +128,38 @@ Requirements, honestly: an MCP server whose tools include `get_page`, `put_page`
 
 Command: `/tickets`.
 
+## fehler-loop
+
+The bar above the input field shows the state of the fix loop of the GitHub repo named `OMS`, e.g. `Loop: 2 PRs · 1 Frage · 3 Tests` (only what waits for you; drafts not counted): red if a PR has failing CI, yellow if one is marked `[erst testen]`, grey `Loop: nichts offen` when nothing is open. A click on it, or `/fehler-loop`, opens the pane. Outside the OMS repo (`oms-2.0` is a different repo) the bar stays empty.
+
+The pane has five sections, each with links to GitHub and "keine" when empty:
+
+- **Wartet auf dich – PRs zum Mergen:** open PRs labelled `fix-loop` with CI state, "Entwurf" and "erst testen"
+- **Sammelfragen:** issues labelled `zu-pruefen` with the number of open questions; button "Beantworten"
+- **Offene Handtests:** unchecked hand tests from PRs merged in the last 14 days
+- **Warteschlange:** open issues with the label `beheben`, `sicherheit`, `bug` or `performance` that no open PR covers yet; button "Beheben"
+- **Routinen:** last run and result of each routine, from the status table in the issue labelled `routinen`; button "Jetzt starten"
+
+The buttons only write text into the input field (`/xx-fehler-loop behebe #<nr>`, `/xx-fehler-loop jetzt <name>`) and send nothing. The mod only runs read-only `gh` calls (`pr list`, `issue list`) at session start, every 5 minutes, on `/fehler-loop` and on "Neu laden"; it never merges.
+
+Where the pane is not drawn (e.g. the desktop app over a remote connection), `/fehler-loop` answers with the overview as Markdown text instead.
+
+Command: `/fehler-loop`. Requirements: `gh` logged in with read access to the repo.
+
 ## ram
 
 Used memory in the bar, polled every 10 seconds from `memory_pressure -Q` (macOS only): `RAM 66%` is 100 minus the "free percentage". Grey below 80 %, yellow from 80 %, red from 90 %. Where the command is missing or fails, the entry is left out without a message.
 
 ## The shared bar
 
-`dokploy-statusbar`, `todos` and `ram` draw into the same band above the input field, which only one hook can fill. Each mod reads the tree of the hooks inside it (`next(e)`), adds its entry under a sorted key and rebuilds the bar, so the layout does not depend on plugin order. Apps on the left, the rest on the right, separated by ` · `, the Dokploy fetch time last:
+`dokploy-statusbar`, `todos`, `ram` and `fehler-loop` draw into the same band above the input field, which only one hook can fill. Each mod reads the tree of the hooks inside it (`next(e)`), adds its entry under a sorted key and rebuilds the bar, so the layout does not depend on plugin order. Apps on the left, the rest on the right, separated by ` · `, the Dokploy fetch time last:
 
 ```
  ● api-app  ● web-app  ● worker running 1:20            Aufgaben 3 · RAM 66% · 23:20
  > _
 ```
 
-Without Dokploy only `Aufgaben` and `RAM` appear. `hooks/bar.tsx` is the same file in all three mods.
+Without Dokploy only `Aufgaben` and `RAM` appear. `hooks/bar.tsx` is the same file in all four mods.
 
 ## Structure
 

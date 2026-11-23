@@ -1,0 +1,7 @@
+{
+  "name": "fehler-loop",
+  "version": "0.1.0",
+  "description": "Stand des Fehler-Loops im GitHub-Repo OMS: Zähler in der Leiste über dem Eingabefeld und ein Pane mit PRs, Sammelfragen, Handtests, Warteschlange und Routinen; ein Klick schreibt nur Text ins Eingabefeld",
+  "author": { "name": "Nam" },
+  "types": "./types/index.d.ts"
+}

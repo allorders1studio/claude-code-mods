@@ -1,6 +1,6 @@
 {
   "name": "claude-code-mods",
-  "description": "Mods for Claude Code: Dokploy deploy status bar, G-Brain tasks pane, RAM usage, Git worktree overview",
+  "description": "Mods for Claude Code: Dokploy deploy status bar, G-Brain tasks pane, RAM usage, Git worktree overview, OMS fix-loop pane",
   "owner": {
     "name": "Nam"
   },
@@ -20,6 +20,10 @@
     {
       "name": "worktrees",
       "source": "./worktrees"
+    },
+    {
+      "name": "fehler-loop",
+      "source": "./fehler-loop"
     }
   ]
 }
